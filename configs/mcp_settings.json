@@ -1,0 +1,61 @@
+{
+  "_doc": "Roo Code Global MCP Settings v3 — no credentials stored here. See README for env var setup.",
+  "mcpServers": {
+
+    "serena": {
+      "_doc": "PRIMARY: Semantic LSP code search. Replaces most read_file calls. Uses uvx.",
+      "command": "uvx",
+      "args": [
+        "--from", "git+https://github.com/oraios/serena",
+        "serena", "start-mcp-server",
+        "--context", "ide-assistant",
+        "--project-from-cwd"
+      ]
+    },
+
+    "fetch": {
+      "_doc": "FREE: Official MCP fetch — converts any URL to clean Markdown. Zero cost, zero API key.",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"]
+    },
+
+    "context7": {
+      "_doc": "DOCS: Version-accurate library documentation. Use for API lookups, not broad research.",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+
+    "github": {
+      "_doc": "REPO: GitHub issues, PRs, code. Dynamic toolsets = loads tools on demand (~4 at start).",
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e", "GITHUB_DYNAMIC_TOOLSETS",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}",
+        "GITHUB_DYNAMIC_TOOLSETS": "1"
+      }
+    },
+
+    "brave-search": {
+      "_doc": "WEB: Real-time web search. Use for CVEs, releases, comparisons. Max 2 searches/session.",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "${env:BRAVE_API_KEY}"
+      },
+      "alwaysAllow": ["brave_web_search"]
+    },
+
+    "figma-dev-mode": {
+      "_doc": "UI: Figma Dev Mode integration. Enable per-project when doing UI work.",
+      "type": "sse",
+      "url": "http://127.0.0.1:3845/sse",
+      "disabled": true
+    }
+
+  }
+}

@@ -1,0 +1,4 @@
+.bak_
+.install_log
+pycache/
+*.pyc
