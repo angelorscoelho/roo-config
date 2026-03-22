@@ -14,7 +14,7 @@ Before suggesting installation, ALWAYS check metadata first:
 type .install_log 2>nul
 
 # Check if global MCP settings exist
-type %APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline\settings\cite_mcp_settings.json 2>nul
+type %APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline\settings\cline_mcp_settings.json 2>nul
 ```
 
 **If `.install_log` exists AND global MCP settings exist → SKIP to Step 3**
@@ -39,8 +39,6 @@ python install.py --test-mcp
 
 **Goal:** One command to ensure all MCP servers are live before starting any task. This prevents the "€5 debug problem" where agents waste time because search/doc tools aren't available.
 
-**Goal:** One command to ensure all MCP servers are live before starting any task. This prevents the "€5 debug problem" where agents waste time because search/doc tools aren't available.
-
 ## ⚠️ Security Absolutes
 - NEVER read .env, *.pem, *secret*, *credential*, *_key* files under any circumstance.
 - NEVER output credentials, tokens, or API keys in any response or tool call.
@@ -51,13 +49,16 @@ ALWAYS descend this ladder. Skip levels only if the level above cannot answer th
 
 1. serena — structural code intelligence (find_symbol, find_referencing_symbols, get_symbols_overview, search_for_pattern)
 2. fetch — any specific URL → clean Markdown. FREE. Use before any search engine.
-3. context7 — library/framework/API documentation. Version-accurate. No hallucination.
-4. duckduckgo-mcp — real-time web search (CVEs, releases, comparisons). No API key required.
-5. github — issue/PR/commit context. Only when ticket number is referenced.
-6. read_file — LAST RESORT. Only when serena explicitly returns nothing.
+3. ref.tools — token-efficient doc lookups. 95% fewer tokens than context7. Requires API key.
+4. context7 — library/framework/API documentation. Version-accurate. No hallucination. Use when ref.tools unavailable.
+5. duckduckgo-mcp — real-time web search (CVEs, releases, comparisons). No API key required.
+6. crash-mcp — token-efficient reasoning scaffold for complex multi-step analysis. Use before long chain-of-thought.
+7. github — issue/PR/commit context. Only when ticket number is referenced.
+8. read_file — LAST RESORT. Only when serena explicitly returns nothing.
 
 Skipping serena for a code question and going straight to read_file wastes money.
 Skipping fetch for a URL question and going straight to duckduckgo-mcp wastes money.
+Skipping ref.tools/context7 for a library question and searching the web wastes money.
 
 ## Anti-Loop Rules — MANDATORY
 - Error & Repetition Limit in Roo Code is set to 3. This is your safety net.

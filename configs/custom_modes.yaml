@@ -1,7 +1,7 @@
 # ============================================================
 # ROO CODE — GLOBAL CUSTOM MODES v3
 # March 2026 | OpenRouter models verified against UI screenshots
-# MCP stack: serena → fetch → context7 → brave-search → github
+# MCP stack: serena → fetch → ref.tools → context7 → duckduckgo-mcp → crash-mcp → github
 # Anti-loop: Error & Repetition Limit = 3 (set in Roo Code UI)
 # Todo list tool: ENABLED (set in Roo Code Advanced Settings)
 # ============================================================
@@ -21,7 +21,26 @@
 #  ⚙️ DevOps        deepseek/deepseek-v3.2              0.1   Low        [default]
 #  🔒 Security      deepseek/deepseek-v3.2              0.0   Medium     [default]
 #
-# WHY NOT R1 FOR DEBUG/SECURITY: R1 models have uncontrolled internal reasoning that
+# FREE TIER ALTERNATIVES (OpenRouter :free variants — rate-limited but zero cost):
+#
+#  MODE              FREE MODEL                                       TEMP  NOTES
+#  ──────────────── ─────────────────────────────────────────────── ────  ──────────────────────────
+#  🏛️ Architect     google/gemini-2.0-flash-exp:free                 0.3   1M ctx, strong reasoning
+#  ⚡ Code           deepseek/deepseek-chat-v3-0324:free              0.05  Best free coder; V3 quality
+#  ❓ Ask            google/gemma-3-27b-it:free                       0.5   Lightweight, fast Q&A
+#  🐛 Debug         deepseek/deepseek-r1:free                        0.0   R1 reasoning; set limit=2
+#  🎯 Orchestrator  meta-llama/llama-4-maverick:free                 0.2   Strong task planning
+#  🔀 Merge Res.    deepseek/deepseek-chat-v3-0324:free              0.0   Deterministic diffs
+#  📄 Docs          google/gemma-3-27b-it:free                       0.6   Good language quality
+#  📋 User Story    mistralai/mistral-small-3.1-24b-instruct:free    0.7   Structured output
+#  ⚙️ DevOps        meta-llama/llama-4-scout:free                    0.1   Infra-aware, lightweight
+#  🔒 Security      deepseek/deepseek-r1:free                        0.0   Deep taint analysis
+#
+# NOTE on free models: :free variants share a rate-limited pool. Set rate limit to 2s in
+# Roo Code Advanced Settings. R1:free has no reasoning effort control — set Error & Repetition
+# Limit to 2 when using it for Debug/Security to prevent runaway loops.
+#
+# WHY NOT R1 FOR DEBUG/SECURITY (paid): R1 models have uncontrolled internal reasoning that
 # loops far more aggressively than V3.2 + Low/Medium reasoning effort. V3.2 with
 # controlled reasoning effort gives structured CoT without runaway token burn.
 #
@@ -58,9 +77,9 @@ customModes:
       1. Project structure needed?
          → serena: get_symbols_overview("{root or affected dir}"). ONE call.
       2. Framework/library best practice needed?
-         → context7: resolve-library-id → get-library-docs. NOT training memory.
+         → ref.tools: lookup if API key available. ELSE context7: resolve-library-id → get-library-docs. NOT training memory.
       3. External pattern or comparison needed?
-         → fetch: fetch URL directly if you have one. Otherwise brave-search: one query ≤7 words.
+         → fetch: fetch URL directly if you have one. Otherwise duckduckgo-mcp: one query ≤7 words.
       4. GitHub issue context needed?
          → github (dynamic tools will surface get_issue automatically).
       FORBIDDEN: read_file for structural understanding. Use serena.
@@ -100,7 +119,7 @@ customModes:
       2. All usages/callers of X?
          → serena: find_referencing_symbols("{name}"). Never grep manually.
       3. Library API syntax?
-         → context7: resolve-library-id → get-library-docs. Never guess from training.
+         → ref.tools: lookup if API key available. ELSE context7: resolve-library-id → get-library-docs. Never guess from training.
       4. Pattern across files?
          → serena: search_for_pattern("{pattern}"). Never loop read_file.
       5. Module structure?
@@ -136,16 +155,16 @@ customModes:
 
       ## MCP DECISION TREE — IN ORDER OF PREFERENCE (cost ascending)
       1. Library/framework API question?
-         → context7: resolve-library-id → get-library-docs. Fastest + free.
+         → ref.tools: lookup if API key available. ELSE context7: resolve-library-id → get-library-docs. Fastest.
       2. Question about THIS project's code?
          → serena: find_symbol or get_symbols_overview. Never read files.
       3. Specific URL mentioned in question?
          → fetch: fetch that URL. Returns clean markdown instantly. Free.
       4. Current web info needed (CVE, release, comparison)?
-         → brave-search: ONE focused query. Extract answer. Stop.
+         → duckduckgo-mcp: ONE focused query. Extract answer. Stop.
       5. None work?
          → Ask user to paste the relevant snippet. Never read files autonomously.
-      FORBIDDEN: using brave-search when context7 would answer the same library question.
+      FORBIDDEN: using duckduckgo-mcp when ref.tools or context7 would answer the same library question.
 
       ## OUTPUT RULES
       - Lead with the direct answer. Caveats AFTER, never before.
@@ -181,7 +200,7 @@ customModes:
       - NEVER run a verification command that modifies state during diagnosis.
 
       ## MCP DECISION TREE — MANDATORY DEBUG SEQUENCE
-      Step 0: State hypothesis in ≤3 lines. No tools yet.
+      Step 0: State hypothesis in ≤3 lines. No tools yet. If multi-step, use crash-mcp reasoning scaffold first.
       Step 1: Locate error source.
          → serena: find_symbol("{symbol from error stack trace}") → jump to definition.
          → If error includes file:line → read_file ONLY that file, ONLY lines ±20 of the error.
@@ -191,10 +210,10 @@ customModes:
       Step 3: Check static analysis.
          → serena: get_diagnostics if available.
       Step 4: Verify API behavior if unexpected.
-         → context7: get-library-docs for the specific method.
+         → ref.tools: lookup if API key available. ELSE context7: get-library-docs for the specific method.
       Step 5: Look up known bug (LAST RESORT, in this order).
          → fetch: paste the exact GitHub issue URL or AWS/library docs URL if you have one.
-         → brave-search: "{library} {error} site:github.com OR stackoverflow.com"
+         → duckduckgo-mcp: "{library} {error} site:github.com OR stackoverflow.com"
       Step 6: Apply fix. ONE surgical change. No refactoring.
       Step 7: State exactly what to run to verify. Do NOT run deployment steps autonomously.
 
@@ -375,11 +394,11 @@ customModes:
       1. Existing pipeline or workflow file needed?
          → github: get_file_contents (dynamic toolset). Read current state before any rewrite.
       2. IaC provider syntax or module?
-         → context7: get-library-docs for the specific provider (e.g., terraform-aws).
+         → ref.tools: lookup if API key available. ELSE context7: get-library-docs for the specific provider (e.g., terraform-aws).
       3. Find existing infra patterns in repo?
          → serena: search_for_pattern("{resource type}") in infra/ or deploy/ directory.
       4. Cloud pricing or service limits?
-         → fetch: paste the AWS/GCP/Azure pricing URL directly. Or brave-search: one query.
+         → fetch: paste the AWS/GCP/Azure pricing URL directly. Or duckduckgo-mcp: one query.
       5. Specific error from cloud CLI?
          → fetch: paste the AWS docs URL for that error code. Free and exact.
 
@@ -417,10 +436,11 @@ customModes:
 
       ## MCP DECISION TREE — SECURITY SPECIFIC
       1. Tracing injection/taint path?
+         → crash-mcp: scaffold multi-hop taint analysis FIRST (prevents reasoning loops on complex chains).
          → serena: find_referencing_symbols from user-input entry points. Map chain BEFORE reading files.
          → Only read_file at the exact location where taint enters untrusted execution.
       2. Suspicious dependency version?
-         → brave-search: "{package} {version} CVE 2025 2026". ONE query.
+         → duckduckgo-mcp: "{package} {version} CVE 2025 2026". ONE query.
          → fetch: paste the NVD/GitHub advisory URL if found.
       3. Secret pattern search?
          → serena: search_for_pattern for: "api_key", "password=", "secret=", "token=", "Bearer ".

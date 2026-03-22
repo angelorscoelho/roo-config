@@ -39,23 +39,29 @@ If `memory-bank/` does NOT exist: skip silently. Do not create it. Do not mentio
    → Use fetch BEFORE any search engine. Always.
 
 6. Library/framework API behavior?
-   → `context7: resolve-library-id` → `get-library-docs`.
+   → `ref.tools: lookup` if API key available (REF_TOOLS_API_KEY set).
+   → ELSE `context7: resolve-library-id` → `get-library-docs`.
    → Only after fetch of a specific page fails or no URL is available.
 
-7. Current web info (CVE, benchmark, comparison)?
-   → `brave-search: brave_web_search("{query ≤7 words}")`.
+7. Multi-step reasoning or complex analysis needed?
+   → `crash-mcp` reasoning scaffold BEFORE starting. Prevents reasoning loops on >3-step analysis.
+   → Use before any taint analysis, architecture review, or multi-file debugging chain.
+
+8. Current web info (CVE, benchmark, comparison)?
+   → `duckduckgo-mcp: search("{query ≤7 words}")`.
    → MAX 2 searches per session. Never chain more than 2.
 
-8. GitHub issue/PR context?
+9. GitHub issue/PR context?
    → `github` (dynamic tools). Only when ticket number is explicitly referenced.
 
 ### Prohibited patterns (these burn money):
 - `read_file` on a file "to understand project structure" → use serena
 - `list_files` depth>1 as a first action → use serena: get_symbols_overview
-- `brave-search` when you have a URL → use fetch instead
-- `brave-search` for library API questions → use context7 instead
+- `duckduckgo-mcp` when you have a URL → use fetch instead
+- `duckduckgo-mcp` for library API questions → use ref.tools or context7 instead
 - Calling `find_symbol` AND `read_file` on the same target in the same step
 - Calling any MCP tool twice for the same input in the same session
+- Skipping `crash-mcp` scaffold for complex multi-step analysis → reasoning loops waste money
 
 ## ANTI-LOOP — During Session
 

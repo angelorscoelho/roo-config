@@ -208,7 +208,7 @@ MCP_SERVERS: Dict[str, Dict[str, Any]] = {
 
     # ── npm-based servers ─────────────────────────────────────────────────────
     "fetch": {
-        "_doc": "FREE: Official MCP fetch — converts any URL to clean Markdown. Zero cost, zero API key. Use BEFORE brave-search.",
+        "_doc": "FREE: Official MCP fetch — converts any URL to clean Markdown. Zero cost, zero API key. Use BEFORE duckduckgo-mcp.",
         "type": "npx",
         "package": "@modelcontextprotocol/server-fetch",
         "install_cmd": ["npx", "-y", "@modelcontextprotocol/server-fetch"],
@@ -254,12 +254,12 @@ MCP_SERVERS: Dict[str, Dict[str, Any]] = {
     # ── Python/uv-based servers ───────────────────────────────────────────────
     "duckduckgo-mcp": {
         "_doc": "SEARCH: PRIMARY web search. Privacy-safe, no API key required. Use instead of brave-search.",
-        "type": "python",
+        "type": "uvx",
         "package": "duckduckgo-mcp",
-        "install_cmd": ["uv", "pip", "install", "duckduckgo-mcp"],
+        "install_cmd": ["uvx", "--from", "duckduckgo-mcp", "duckduckgo-mcp"],
         "config": {
-            "command": "uv",
-            "args": ["--directory", str(Path.home() / "Documents" / "code" / "roo-config"), "run", "duckduckgo-mcp"]
+            "command": "uvx",
+            "args": ["--from", "duckduckgo-mcp", "duckduckgo-mcp"]
         },
         "env_vars": [],
         "test_url": None,
@@ -267,12 +267,12 @@ MCP_SERVERS: Dict[str, Dict[str, Any]] = {
 
     "crash-mcp": {
         "_doc": "REASONING: Token-efficient reasoning scaffold. Replaces verbose chain-of-thought. Python/uv-based.",
-        "type": "python",
+        "type": "uvx",
         "package": "crash-mcp",
-        "install_cmd": ["uv", "pip", "install", "crash-mcp"],
+        "install_cmd": ["uvx", "--from", "crash-mcp", "crash-mcp"],
         "config": {
-            "command": "uv",
-            "args": ["--directory", str(Path.home() / "Documents" / "code" / "roo-config"), "run", "crash-mcp"]
+            "command": "uvx",
+            "args": ["--from", "crash-mcp", "crash-mcp"]
         },
         "env_vars": [],
         "test_url": None,
@@ -600,7 +600,7 @@ def test_mcp_server_connectivity(server_name: str, server_config: Dict[str, Any]
         return result
     
     elif srv_type == "external":
-        # External servers (e.g., brave-search via npx) are configured but not locally installed
+        # External servers (e.g., HTTP/SSE-based) are configured but not locally installed
         result["success"] = True
         result["message"] = "External server (configured in mcp_settings.json)"
         return result
@@ -763,11 +763,7 @@ def validate_json(path: Path):
 REQUIRED_ENV = {
     "REF_TOOLS_API_KEY": (
         "Ref.tools API key — https://ref.tools (95% fewer tokens than Context7)\n"
-        "       Sign up at ref.tools to get your API key"
-    ),
-    "BRAVE_API_KEY": (
-        "Brave Search key — https://api.search.brave.com/app/keys\n"
-        "       Real-time web search, CVEs, releases, comparisons"
+        "       Sign up at ref.tools to get your API key (free tier available)"
     ),
     "GITHUB_PERSONAL_ACCESS_TOKEN": (
         "GitHub PAT — https://github.com/settings/tokens\n"
@@ -932,15 +928,15 @@ def run_global_install(dry_run: bool):
             "     ✓ OpenRouter Provider Routing → see table above (google-vertex for Gemini models)"
         ),
         (
-            "5", "Optional community MCP servers to install manually",
-            "These are NOT in the automated config (unverified package names) but highly recommended:\n\n"
-            "     Ref.tools — 95% fewer tokens than Context7 for doc lookups:\n"
-            "       → Visit https://ref.tools and follow their MCP setup guide\n"
-            "       → Add to your mcp_settings.json manually after verifying the install command\n\n"
-            "     CRASH-MCP — token-efficient reasoning scaffold (replaces Sequential Thinking):\n"
-            "       → Search reddit.com/r/ClaudeAI for 'CRASH-MCP' for current install instructions\n"
-            "       → Once confirmed, add to mcp_settings.json with 'disabled: true' in global,\n"
-            "         enable only in projects that need deep reasoning chains (e.g. complex debugging)"
+            "5", "MCP servers (duckduckgo-mcp, crash-mcp) — installed via uvx automatically",
+            "Both are installed via uvx — no separate install step needed.\n\n"
+            "     duckduckgo-mcp — PRIMARY web search, no API key required:\n"
+            "       → uvx --from duckduckgo-mcp duckduckgo-mcp  (auto-runs)\n\n"
+            "     crash-mcp — token-efficient reasoning scaffold:\n"
+            "       → uvx --from crash-mcp crash-mcp  (auto-runs)\n\n"
+            "     ref.tools — 95% fewer tokens than Context7 (optional API key):\n"
+            "       → Set REF_TOOLS_API_KEY env var, then reload VS Code\n"
+            "       → Free tier available without key; key unlocks higher rate limits"
         ),
         (
             "6", "Initialize each project (run once per project)",
