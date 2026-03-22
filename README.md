@@ -71,9 +71,9 @@ Set once per mode via Roo Code UI → Sticky Models → OpenRouter:
 
 | Mode | Model | Temp | Reasoning | Provider Routing |
 |------|-------|------|-----------|-----------------|
-| 🏛️ Architect | `google/gemini-2.5-flash` | 0.3 | None | google-vertex |
+| 🏛️ Architect | `google/gemini-3-preview-flash` | 0.3 | None | google-vertex |
 | ⚡ Code | `minimax/minimax-m2.7` | 0.05 | None | [default] |
-| ❓ Ask | `google/gemini-2.5-flash-lite` | 0.5 | None | google-vertex |
+| ❓ Ask | `google/gemini-3-flash` | 0.5 | None | google-vertex |
 | 🐛 Debug | `deepseek/deepseek-v3.2` | 0.0 | **Low** | [default] |
 | 🎯 Orchestrator | `minimax/minimax-m2.7` | 0.2 | None | [default] |
 | 🔀 Merge Resolver | `deepseek/deepseek-v3.1-terminus` | 0.0 | None | [default] |

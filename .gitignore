@@ -2,3 +2,4 @@
 .install_log
 pycache/
 *.pyc
+.serena/project.yml

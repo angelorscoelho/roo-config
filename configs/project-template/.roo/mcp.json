@@ -9,6 +9,14 @@
         "--context", "ide-assistant",
         "--project-from-cwd"
       ]
+    },
+    "Ref": {
+      "_doc": "REPO: Ref.tools API integration.",
+      "type": "streamable-http",
+      "url": "https://api.ref.tools/mcp",
+      "headers": {
+        "X-ref-API-Key": "${env:REF_TOOLS_API_KEY}"
+      }
     }
   }
 }
