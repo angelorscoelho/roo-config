@@ -13,12 +13,12 @@ ALWAYS descend this ladder. Skip levels only if the level above cannot answer th
 1. serena — structural code intelligence (find_symbol, find_referencing_symbols, get_symbols_overview, search_for_pattern)
 2. fetch — any specific URL → clean Markdown. FREE. Use before any search engine.
 3. context7 — library/framework/API documentation. Version-accurate. No hallucination.
-4. brave-search — real-time web (CVEs, releases, comparisons). MAX 2 queries per session.
+4. duckduckgo-mcp — real-time web search (CVEs, releases, comparisons). No API key required.
 5. github — issue/PR/commit context. Only when ticket number is referenced.
 6. read_file — LAST RESORT. Only when serena explicitly returns nothing.
 
 Skipping serena for a code question and going straight to read_file wastes money.
-Skipping fetch for a URL question and going straight to brave-search wastes money.
+Skipping fetch for a URL question and going straight to duckduckgo-mcp wastes money.
 
 ## Anti-Loop Rules — MANDATORY
 - Error & Repetition Limit in Roo Code is set to 3. This is your safety net.

@@ -3,7 +3,7 @@
   "mcpServers": {
 
     "serena": {
-      "_doc": "PRIMARY: Semantic LSP code search. Replaces most read_file calls. Uses uvx.",
+      "_doc": "PRIMARY: Semantic LSP code search. Replaces most read_file calls. Use before any file read.",
       "command": "uvx",
       "args": [
         "--from", "git+https://github.com/oraios/serena",
@@ -15,15 +15,36 @@
     },
 
     "fetch": {
-      "command": "python",
-      "args": ["-m", "mcp_server_fetch"]
+      "_doc": "FREE: Official MCP fetch — converts any URL to clean Markdown. Zero cost, zero API key. Use before duckduckgo-mcp.",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"]
     },
-
 
     "context7": {
       "_doc": "DOCS: Version-accurate library documentation. Use for API lookups, not broad research.",
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+
+    "ref.tools": {
+      "_doc": "DOCS: Token-efficient doc lookups. 95% fewer tokens than Context7. Requires API key from ref.tools.",
+      "command": "npx",
+      "args": ["-y", "@upstash/ref-tools-mcp"],
+      "env": {
+        "REF_TOOLS_API_KEY": "${env:REF_TOOLS_API_KEY}"
+      }
+    },
+
+    "duckduckgo-mcp": {
+      "_doc": "SEARCH: PRIMARY web search. Privacy-safe, no API key required. Use instead of brave-search.",
+      "command": "uv",
+      "args": ["--directory", "c:/Users/Angelo/Documents/code/roo-config", "run", "duckduckgo-mcp"]
+    },
+
+    "crash-mcp": {
+      "_doc": "REASONING: Token-efficient reasoning scaffold. Python/uv-based. See crash-mcp docs for usage.",
+      "command": "uv",
+      "args": ["--directory", "c:/Users/Angelo/Documents/code/roo-config", "run", "crash-mcp"]
     },
 
     "github": {
@@ -39,21 +60,6 @@
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}",
         "GITHUB_DYNAMIC_TOOLSETS": "1"
       }
-    },
-
-    "Ref": {
-      "_doc": "REPO: Ref.tools API integration.",
-      "type": "streamable-http",
-      "url": "https://api.ref.tools/mcp",
-      "headers": {
-        "X-ref-API-Key": "${env:REF_TOOLS_API_KEY}"
-      }
-    },
-
-    "duckduckgo": {
-      "_doc": "SEARCH: DuckDuckGo web search via MCP. Provides search capabilities.",
-      "command": "uv",
-      "args": ["run", "duckduckgo-mcp-server"]
     },
 
     "figma-dev-mode": {

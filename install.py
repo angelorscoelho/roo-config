@@ -13,6 +13,8 @@ Commands:
   python install.py --init-project     Scaffold project in current directory
   python install.py --init-project PATH  Scaffold specific project path
   python install.py --check-env        Verify environment variables
+  python install.py --install-mcp      Install all MCP servers from config
+  python install.py --test-mcp         Test connectivity of all MCP servers
 
 Python MCP Servers:
   For Python-based MCP servers (e.g., duckduckgo-mcp), use 'uv + venv':
@@ -29,8 +31,12 @@ import shutil
 import platform
 import argparse
 import json
+import subprocess
+import urllib.request
+import urllib.error
 from pathlib import Path
 from datetime import datetime
+from typing import Optional, Dict, Any, List
 
 # ─── Colour helpers ──────────────────────────────────────────────────────────
 ANSI = sys.stdout.isatty() and (
@@ -177,6 +183,481 @@ def install_python_mcp_server(package_name: str, mcp_config_path: Path) -> bool:
     return True
 
 
+# ─── MCP Server Definitions ───────────────────────────────────────────────────
+
+MCP_SERVERS: Dict[str, Dict[str, Any]] = {
+    # ── uvx-based servers ────────────────────────────────────────────────────
+    "serena": {
+        "_doc": "PRIMARY: Semantic LSP code search. Replaces most read_file calls. Use before any file read.",
+        "type": "uvx",
+        "package": None,
+        "install_cmd": ["uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
+        "config": {
+            "command": "uvx",
+            "args": [
+                "--from", "git+https://github.com/oraios/serena",
+                "serena", "start-mcp-server",
+                "--context", "ide-assistant",
+                "--project-from-cwd",
+                "--no-open-browser"
+            ]
+        },
+        "env_vars": [],
+        "test_url": None,
+    },
+
+    # ── npm-based servers ─────────────────────────────────────────────────────
+    "fetch": {
+        "_doc": "FREE: Official MCP fetch — converts any URL to clean Markdown. Zero cost, zero API key. Use BEFORE brave-search.",
+        "type": "npx",
+        "package": "@modelcontextprotocol/server-fetch",
+        "install_cmd": ["npx", "-y", "@modelcontextprotocol/server-fetch"],
+        "config": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-fetch"]
+        },
+        "env_vars": [],
+        "test_url": None,
+    },
+
+    "context7": {
+        "_doc": "DOCS: Version-accurate library documentation. Use for API lookups, not broad research.",
+        "type": "npx",
+        "package": "@upstash/context7-mcp",
+        "install_cmd": ["npx", "-y", "@upstash/context7-mcp@latest"],
+        "config": {
+            "command": "npx",
+            "args": ["-y", "@upstash/context7-mcp@latest"]
+        },
+        "env_vars": [],
+        "test_url": None,
+    },
+
+
+    # ── HTTP-based servers (external service) ─────────────────────────────────
+    "ref.tools": {
+        "_doc": "DOCS: Token-efficient doc lookups. 95% fewer tokens than Context7. Requires API key from ref.tools website.",
+        "type": "http",
+        "package": None,
+        "install_cmd": None,
+        "config": {
+            "command": "npx",
+            "args": ["-y", "@upstash/ref-tools-mcp"],
+            "env": {
+                "REF_TOOLS_API_KEY": "${env:REF_TOOLS_API_KEY}"
+            }
+        },
+        "env_vars": ["REF_TOOLS_API_KEY"],
+        "test_url": None,
+    },
+
+    # ── Python/uv-based servers ───────────────────────────────────────────────
+    "duckduckgo-mcp": {
+        "_doc": "SEARCH: PRIMARY web search. Privacy-safe, no API key required. Use instead of brave-search.",
+        "type": "python",
+        "package": "duckduckgo-mcp",
+        "install_cmd": ["uv", "pip", "install", "duckduckgo-mcp"],
+        "config": {
+            "command": "uv",
+            "args": ["--directory", str(Path.home() / "Documents" / "code" / "roo-config"), "run", "duckduckgo-mcp"]
+        },
+        "env_vars": [],
+        "test_url": None,
+    },
+
+    "crash-mcp": {
+        "_doc": "REASONING: Token-efficient reasoning scaffold. Replaces verbose chain-of-thought. Python/uv-based.",
+        "type": "python",
+        "package": "crash-mcp",
+        "install_cmd": ["uv", "pip", "install", "crash-mcp"],
+        "config": {
+            "command": "uv",
+            "args": ["--directory", str(Path.home() / "Documents" / "code" / "roo-config"), "run", "crash-mcp"]
+        },
+        "env_vars": [],
+        "test_url": None,
+    },
+
+    # ── Docker-based servers ─────────────────────────────────────────────────
+    "github": {
+        "_doc": "REPO: GitHub issues, PRs, code. Dynamic toolsets = loads tools on demand (~4 at start).",
+        "type": "docker",
+        "package": None,
+        "install_cmd": None,  # Docker image pulled at runtime
+        "config": {
+            "command": "docker",
+            "args": [
+                "run", "-i", "--rm",
+                "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+                "-e", "GITHUB_DYNAMIC_TOOLSETS",
+                "ghcr.io/github/github-mcp-server"
+            ],
+            "env": {
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}",
+                "GITHUB_DYNAMIC_TOOLSETS": "1"
+            }
+        },
+        "env_vars": ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+        "test_url": None,
+    },
+
+    # ── memory-bank (project init script, not a server) ─────────────────────
+    "memory-bank": {
+        "_doc": "PROJECT: Memory bank scaffolding via install.py --init-project. Not an MCP server — a project template.",
+        "type": "external",
+        "package": None,
+        "install_cmd": None,
+        "config": {},
+        "env_vars": [],
+        "test_url": None,
+    },
+
+    # ── SSE-based servers (disabled by default) ───────────────────────────────
+    "figma-dev-mode": {
+        "_doc": "UI: Figma Dev Mode integration. Enable per-project when doing UI work.",
+        "type": "sse",
+        "package": None,
+        "install_cmd": None,
+        "config": {
+            "type": "sse",
+            "url": "http://127.0.0.1:3845/sse",
+            "disabled": True
+        },
+        "env_vars": [],
+        "test_url": None,
+    },
+}
+
+
+def install_mcp_server(server_name: str, server_config: Dict[str, Any], dry_run: bool = False) -> bool:
+    """
+    Install a single MCP server based on its type.
+    
+    Args:
+        server_name: Name of the server (e.g., "duckduckgo-mcp")
+        server_config: Dict containing server metadata from MCP_SERVERS
+        dry_run: If True, only show what would be done
+    
+    Returns:
+        True if installation succeeded or not needed, False on error
+    """
+    srv_type = server_config.get("type", "unknown")
+    pkg = server_config.get("package")
+    install_cmd = server_config.get("install_cmd")
+    env_vars = server_config.get("env_vars", [])
+    
+    head(f"Installing MCP Server: {server_name}")
+    info(f"Type: {srv_type}")
+    if pkg:
+        info(f"Package: {pkg}")
+    
+    # Check required env vars
+    missing_env = [e for e in env_vars if not os.environ.get(e)]
+    if missing_env:
+        warn(f"Missing env vars (server will work once set): {missing_env}")
+    
+    if srv_type == "python":
+        # Python package via uv
+        if not install_cmd:
+            err(f"No install command for {server_name}")
+            return False
+        
+        # Create venv if needed
+        venv_path = Path(".venv")
+        if not venv_path.exists():
+            info("Creating .venv with uv...")
+            if not dry_run:
+                result = subprocess.run(["uv", "venv"], capture_output=True, text=True)
+                if result.returncode != 0:
+                    err(f"Failed to create venv: {result.stderr}")
+                    return False
+            ok("Created .venv")
+        else:
+            info(".venv already exists")
+        
+        # Install package
+        info(f"Installing {pkg}...")
+        if not dry_run:
+            result = subprocess.run(["uv", "pip", "install", pkg], capture_output=True, text=True)
+            if result.returncode != 0:
+                err(f"Install failed: {result.stderr}")
+                return False
+        ok(f"Installed {pkg}")
+        return True
+    
+    elif srv_type == "python_module":
+        # Python module that runs via `python -m <module>`
+        if not install_cmd:
+            err(f"No install command for {server_name}")
+            return False
+        
+        venv_path = Path(".venv")
+        if not venv_path.exists():
+            info("Creating .venv with uv...")
+            if not dry_run:
+                result = subprocess.run(["uv", "venv"], capture_output=True, text=True)
+                if result.returncode != 0:
+                    err(f"Failed to create venv: {result.stderr}")
+                    return False
+            ok("Created .venv")
+        
+        info(f"Installing {pkg}...")
+        if not dry_run:
+            result = subprocess.run(["uv", "pip", "install", pkg], capture_output=True, text=True)
+            if result.returncode != 0:
+                err(f"Install failed: {result.stderr}")
+                return False
+        ok(f"Installed {pkg}")
+        return True
+    
+    elif srv_type == "uvx":
+        # uvx runs directly, no installation needed
+        info("uvx servers run directly — no installation needed")
+        info("Verify uvx is available:")
+        if not dry_run:
+            result = subprocess.run(["uvx", "--version"], capture_output=True, text=True)
+            if result.returncode == 0:
+                ok(f"uvx available: {result.stdout.strip()}")
+            else:
+                err("uvx not found. Install uv first.")
+                return False
+        return True
+    
+    elif srv_type == "npx":
+        # npx runs directly
+        info("npx servers run directly — no installation needed")
+        info("Verify npx is available:")
+        if not dry_run:
+            result = subprocess.run(["npx", "--version"], capture_output=True, text=True)
+            if result.returncode == 0:
+                ok(f"npx available: {result.stdout.strip()}")
+            else:
+                err("npx not found. Install Node.js.")
+                return False
+        return True
+    
+    elif srv_type == "docker":
+        info("Docker servers pull images at runtime")
+        info("Verify Docker is available:")
+        if not dry_run:
+            result = subprocess.run(["docker", "--version"], capture_output=True, text=True)
+            if result.returncode == 0:
+                ok(f"Docker available: {result.stdout.strip()}")
+            else:
+                err("Docker not found or not running.")
+                return False
+        return True
+    
+    elif srv_type == "http":
+        info("HTTP/SSE servers are external services")
+        info(f"Test URL: {server_config.get('test_url')}")
+        info("No local installation needed")
+        return True
+    
+    elif srv_type == "external":
+        info("External server — installation varies")
+        info("Check server documentation for install instructions")
+        return True
+    
+    else:
+        err(f"Unknown server type: {srv_type}")
+        return False
+
+
+def run_mcp_install(dry_run: bool = False):
+    """Install all MCP servers from the config."""
+    head("MCP Server Installation")
+    
+    if dry_run:
+        warn("DRY RUN — no changes will be made")
+    
+    # Ensure uv is available
+    info("Checking uv availability...")
+    result = subprocess.run(["uv", "--version"], capture_output=True, text=True)
+    if result.returncode != 0:
+        err("uv not installed. Install first:")
+        info("Windows: powershell -ExecutionPolicy ByPass -c \"irm https://astral.sh/uv/install.ps1 | iex\"")
+        info("macOS/Linux: curl -LsSf https://astral.sh/uv/install.sh | sh")
+        if not dry_run:
+            return
+    else:
+        ok(f"uv: {result.stdout.strip()}")
+    
+    # Check for uvx (used by serena)
+    result = subprocess.run(["uvx", "--version"], capture_output=True, text=True)
+    if result.returncode != 0:
+        warn("uvx not available — serena may not work")
+    
+    results = {}
+    for name, config in MCP_SERVERS.items():
+        print()
+        success = install_mcp_server(name, config, dry_run=dry_run)
+        results[name] = success
+        if success:
+            ok(f"{name}: ready")
+        else:
+            err(f"{name}: failed")
+    
+    print()
+    head("Installation Summary")
+    for name, success in results.items():
+        status = "✓" if success else "✗"
+        info(f"  {status} {name}")
+    
+    if all(results.values()):
+        ok("All MCP servers installed successfully")
+    else:
+        warn("Some servers failed — check above for details")
+        info("Note: Some servers need API keys set as environment variables")
+
+
+def test_mcp_server_connectivity(server_name: str, server_config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Test connectivity for a single MCP server.
+    
+    Returns dict with:
+        - success: bool
+        - message: str
+        - details: dict (optional)
+    """
+    srv_type = server_config.get("type")
+    test_url = server_config.get("test_url")
+    env_vars = server_config.get("env_vars", [])
+    
+    result = {
+        "success": False,
+        "message": "",
+        "details": {}
+    }
+    
+    # Check env vars
+    missing = [e for e in env_vars if not os.environ.get(e)]
+    if missing:
+        result["message"] = f"Missing env vars: {missing}"
+        result["details"]["missing_env"] = missing
+        return result
+    
+    if srv_type == "http" and test_url:
+        # Test HTTP endpoint
+        try:
+            req = urllib.request.Request(test_url, method="GET")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                result["success"] = True
+                result["message"] = f"HTTP {resp.status}"
+                result["details"]["status_code"] = resp.status
+        except urllib.error.HTTPError as e:
+            result["message"] = f"HTTP {e.code}"
+            result["details"]["http_error"] = e.code
+        except Exception as e:
+            result["message"] = str(e)
+        return result
+    
+    elif srv_type in ("uvx", "npx"):
+        # Just verify the command exists
+        cmd = server_config["config"]["command"]
+        try:
+            proc = subprocess.run([cmd, "--version"], capture_output=True, text=True, timeout=5)
+            if proc.returncode == 0:
+                result["success"] = True
+                result["message"] = f"{cmd} available"
+                result["details"]["version"] = proc.stdout.strip()
+            else:
+                result["message"] = f"{cmd} not available"
+        except Exception as e:
+            result["message"] = str(e)
+        return result
+    
+    elif srv_type == "docker":
+        # Check docker
+        try:
+            proc = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=10)
+            if proc.returncode == 0:
+                result["success"] = True
+                result["message"] = "Docker available"
+            else:
+                result["message"] = "Docker not available"
+        except Exception as e:
+            result["message"] = str(e)
+        return result
+    
+    elif srv_type in ("python", "python_module"):
+        # Check if package is installed in venv
+        pkg = server_config.get("package")
+        if pkg:
+            try:
+                proc = subprocess.run(
+                    ["uv", "pip", "show", pkg],
+                    capture_output=True, text=True, timeout=10
+                )
+                if proc.returncode == 0:
+                    result["success"] = True
+                    result["message"] = f"{pkg} installed"
+                    result["details"]["package_info"] = proc.stdout.split("\n")[0] if proc.stdout else ""
+                else:
+                    result["message"] = f"{pkg} not installed"
+            except Exception as e:
+                result["message"] = str(e)
+        return result
+    
+    elif srv_type == "external":
+        # External servers (e.g., brave-search via npx) are configured but not locally installed
+        result["success"] = True
+        result["message"] = "External server (configured in mcp_settings.json)"
+        return result
+    
+    result["message"] = f"Unknown type: {srv_type}"
+    return result
+
+
+def test_mcp_servers():
+    """Test connectivity for all configured MCP servers."""
+    head("MCP Server Connectivity Test")
+    
+    # Check env vars first
+    info("Checking environment variables...")
+    all_env_vars = set()
+    for cfg in MCP_SERVERS.values():
+        all_env_vars.update(cfg.get("env_vars", []))
+    
+    for var in sorted(all_env_vars):
+        val = os.environ.get(var, "")
+        if val and len(val) > 8:
+            ok(f"{var}: {'*' * (len(val) - 8)}{val[-8:]}")
+        else:
+            warn(f"{var}: NOT SET")
+    
+    print()
+    head("Testing Server Connectivity")
+    
+    results = {}
+    for name, config in MCP_SERVERS.items():
+        print()
+        info(f"Testing {name}...")
+        test_result = test_mcp_server_connectivity(name, config)
+        results[name] = test_result
+        
+        if test_result["success"]:
+            ok(f"  {test_result['message']}")
+        else:
+            warn(f"  {test_result['message']}")
+        
+        if test_result.get("details"):
+            for k, v in test_result["details"].items():
+                print(f"       {k}: {v}")
+    
+    print()
+    head("Test Summary")
+    passed = sum(1 for r in results.values() if r["success"])
+    total = len(results)
+    info(f"Passed: {passed}/{total}")
+    
+    for name, r in results.items():
+        status = "✓" if r["success"] else "⚠"
+        info(f"  {status} {name}: {r['message']}")
+    
+    return results
+
+
 def backup(target: Path) -> "Path | None":
     if not target.exists():
         return None
@@ -280,12 +761,17 @@ def validate_json(path: Path):
 # ─── Environment variable check ───────────────────────────────────────────────
 
 REQUIRED_ENV = {
+    "REF_TOOLS_API_KEY": (
+        "Ref.tools API key — https://ref.tools (95% fewer tokens than Context7)\n"
+        "       Sign up at ref.tools to get your API key"
+    ),
+    "BRAVE_API_KEY": (
+        "Brave Search key — https://api.search.brave.com/app/keys\n"
+        "       Real-time web search, CVEs, releases, comparisons"
+    ),
     "GITHUB_PERSONAL_ACCESS_TOKEN": (
         "GitHub PAT — https://github.com/settings/tokens\n"
         "       Scopes: repo, read:org, read:user"
-    ),
-    "BRAVE_API_KEY": (
-        "Brave Search key — https://api.search.brave.com/app/keys"
     ),
 }
 
@@ -565,6 +1051,8 @@ def main():
     parser.add_argument("--undo",         action="store_true")
     parser.add_argument("--init-project", nargs="?", const=".", metavar="PATH")
     parser.add_argument("--check-env",    action="store_true")
+    parser.add_argument("--install-mcp",  action="store_true", help="Install all MCP servers")
+    parser.add_argument("--test-mcp",     action="store_true", help="Test MCP server connectivity")
     args = parser.parse_args()
 
     if args.undo:
@@ -574,6 +1062,10 @@ def main():
         sys.exit(0 if ok_flag else 1)
     if args.init_project is not None:
         run_init_project(Path(args.init_project).resolve(), args.dry_run); return
+    if args.install_mcp:
+        run_mcp_install(dry_run=args.dry_run); return
+    if args.test_mcp:
+        test_mcp_servers(); return
 
     run_global_install(args.dry_run)
 
