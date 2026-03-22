@@ -15,10 +15,10 @@
     },
 
     "fetch": {
-      "_doc": "FREE: Official MCP fetch — converts any URL to clean Markdown. Zero cost, zero API key.",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-fetch"]
+      "command": "python",
+      "args": ["-m", "mcp_server_fetch"]
     },
+
 
     "context7": {
       "_doc": "DOCS: Version-accurate library documentation. Use for API lookups, not broad research.",
@@ -48,6 +48,12 @@
       "headers": {
         "X-ref-API-Key": "${env:REF_TOOLS_API_KEY}"
       }
+    },
+
+    "duckduckgo": {
+      "_doc": "SEARCH: DuckDuckGo web search via MCP. Provides search capabilities.",
+      "command": "uv",
+      "args": ["run", "duckduckgo-mcp-server"]
     },
 
     "figma-dev-mode": {
