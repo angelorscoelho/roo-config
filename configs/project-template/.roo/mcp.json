@@ -11,8 +11,8 @@
         "--no-open-browser"
       ]
     },
-    "Ref": {
-      "_doc": "REPO: Ref.tools API integration.",
+    "ref.tools": {
+      "_doc": "DOCS: Token-efficient doc lookups. 95% fewer tokens than Context7. Requires REF_TOOLS_API_KEY.",
       "type": "streamable-http",
       "url": "https://api.ref.tools/mcp",
       "headers": {

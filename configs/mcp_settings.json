@@ -36,15 +36,15 @@
     },
 
     "duckduckgo-mcp": {
-      "_doc": "SEARCH: PRIMARY web search. Privacy-safe, no API key required. Use instead of brave-search.",
-      "command": "uv",
-      "args": ["--directory", "c:/Users/Angelo/Documents/code/roo-config", "run", "duckduckgo-mcp"]
+      "_doc": "SEARCH: PRIMARY web search. Privacy-safe, no API key required.",
+      "command": "uvx",
+      "args": ["--from", "duckduckgo-mcp", "duckduckgo-mcp"]
     },
 
     "crash-mcp": {
-      "_doc": "REASONING: Token-efficient reasoning scaffold. Python/uv-based. See crash-mcp docs for usage.",
-      "command": "uv",
-      "args": ["--directory", "c:/Users/Angelo/Documents/code/roo-config", "run", "crash-mcp"]
+      "_doc": "REASONING: Token-efficient reasoning scaffold. Replaces verbose chain-of-thought.",
+      "command": "uvx",
+      "args": ["--from", "crash-mcp", "crash-mcp"]
     },
 
     "github": {
