@@ -9,7 +9,8 @@
         "--from", "git+https://github.com/oraios/serena",
         "serena", "start-mcp-server",
         "--context", "ide-assistant",
-        "--project-from-cwd"
+        "--project-from-cwd",
+        "--no-open-browser"
       ]
     },
 
@@ -38,16 +39,6 @@
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}",
         "GITHUB_DYNAMIC_TOOLSETS": "1"
       }
-    },
-
-    "brave-search": {
-      "_doc": "WEB: Real-time web search. Use for CVEs, releases, comparisons. Max 2 searches/session.",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
-      "env": {
-        "BRAVE_API_KEY": "${env:BRAVE_API_KEY}"
-      },
-      "alwaysAllow": ["brave_web_search"]
     },
 
     "Ref": {
