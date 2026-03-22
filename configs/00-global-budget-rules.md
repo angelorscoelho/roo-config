@@ -2,6 +2,45 @@
 # Installed to: ~/.roo/rules/00-global-budget-rules.md
 # These apply to EVERY mode globally. Project .roo/rules/ files add on top.
 
+## Session Startup — MCP Server Validation
+
+**CORRECT Workflow (in order):**
+
+### Step 1: Check If Already Installed
+Before suggesting installation, ALWAYS check metadata first:
+
+```bash
+# Check for install log (confirms global install was run)
+type .install_log 2>nul
+
+# Check if global MCP settings exist
+type %APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline\settings\cite_mcp_settings.json 2>nul
+```
+
+**If `.install_log` exists AND global MCP settings exist → SKIP to Step 3**
+
+### Step 2: If NOT Already Installed
+```bash
+# First time on a machine — global install
+python install.py
+
+# Then MCP servers
+python install.py --install-mcp
+```
+
+### Step 3: Verify
+```bash
+python install.py --test-mcp
+```
+
+**Quick validation** — check the test output:
+- ✓ = server ready
+- ✗ = server failed (check API key env vars or install errors)
+
+**Goal:** One command to ensure all MCP servers are live before starting any task. This prevents the "€5 debug problem" where agents waste time because search/doc tools aren't available.
+
+**Goal:** One command to ensure all MCP servers are live before starting any task. This prevents the "€5 debug problem" where agents waste time because search/doc tools aren't available.
+
 ## ⚠️ Security Absolutes
 - NEVER read .env, *.pem, *secret*, *credential*, *_key* files under any circumstance.
 - NEVER output credentials, tokens, or API keys in any response or tool call.

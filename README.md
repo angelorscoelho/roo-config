@@ -29,6 +29,39 @@ cd your-project
 python path/to/roo-config/install.py --init-project
 ```
 
+### MCP Server Validation (Run at Start of Every Session)
+
+**CORRECT Workflow (in order):**
+
+#### Step 1: Check If Already Installed
+Before suggesting installation, ALWAYS check metadata first:
+
+```bash
+# Check for install log (confirms global install was run)
+type .install_log 2>nul
+
+# Check if global MCP settings exist
+type %APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline\settings\cite_mcp_settings.json 2>nul
+```
+
+**If `.install_log` exists AND global MCP settings exist → SKIP to Step 3**
+
+#### Step 2: If NOT Already Installed
+```bash
+# First time on a machine — global install
+python install.py
+
+# Then MCP servers
+python install.py --install-mcp
+```
+
+#### Step 3: Verify
+```bash
+python install.py --test-mcp
+```
+
+**Quick check:** Look for ✓ in test output = server ready. Look for ✗ = failed (check API keys or install errors).
+
 ## File Map
 
 ```
