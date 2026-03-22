@@ -13,6 +13,14 @@ Commands:
   python install.py --init-project     Scaffold project in current directory
   python install.py --init-project PATH  Scaffold specific project path
   python install.py --check-env        Verify environment variables
+
+Python MCP Servers:
+  For Python-based MCP servers (e.g., duckduckgo-mcp), use 'uv + venv':
+    1. cd /path/to/project
+    2. uv venv              → creates .venv
+    3. uv pip install <pkg> → installs to .venv automatically
+    4. Add entry to mcp_settings.json with "uv" command + "run" args
+  See install_python_mcp_server() function for programmatic usage.
 """
 
 import sys
@@ -86,6 +94,88 @@ def check_no_credentials(path: Path) -> bool:
     return True
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
+
+# ─── Python-based MCP Server Installer ───────────────────────────────────────
+
+def install_python_mcp_server(package_name: str, mcp_config_path: Path) -> bool:
+    """
+    Helper for installing Python-based MCP servers that require uv + virtual environment.
+
+    CRITICAL: 'uv pip' requires a virtual environment. Without it, installation fails.
+    The correct workflow is:
+        1. uv venv          → creates .venv in current directory
+        2. uv pip install <package>   → installs to .venv automatically (no --system needed)
+
+    Args:
+        package_name: The pip package name (e.g., "duckduckgo-mcp", "some-mcp-server")
+        mcp_config_path: Path to the MCP settings JSON to update (e.g., globalStorage mcp_settings)
+
+    Returns:
+        True if installation succeeded, False otherwise.
+
+    Example usage after successful install:
+        # Add to your mcp_settings.json manually:
+        {
+          "mcpServers": {
+            "duckduckgo-mcp": {
+              "command": "uv",
+              "args": ["--directory", "/path/to/your/project", "run", "duckduckgo-mcp"]
+            }
+          }
+        }
+
+    NOTE: If uv is not installed, install it first:
+        powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    """
+    import subprocess
+
+    print()
+    head(f"Installing Python MCP Server: {package_name}")
+
+    # Step 1: Create virtual environment if it doesn't exist
+    venv_path = Path(".venv")
+    if venv_path.exists():
+        ok(f"Virtual environment already exists: {venv_path}")
+    else:
+        info("Creating virtual environment with 'uv venv'...")
+        result = subprocess.run(["uv", "venv"], capture_output=True, text=True)
+        if result.returncode != 0:
+            err(f"Failed to create venv: {result.stderr}")
+            err("Make sure uv is installed: powershell -ExecutionPolicy ByPass -c \"irm https://astral.sh/uv/install.ps1 | iex\"")
+            return False
+        ok("Created .venv")
+
+    # Step 2: Install the package
+    info(f"Installing {package_name} with 'uv pip install'...")
+    result = subprocess.run(["uv", "pip", "install", package_name], capture_output=True, text=True)
+    if result.returncode != 0:
+        err(f"Failed to install {package_name}: {result.stderr}")
+        return False
+    ok(f"Installed: {package_name}")
+
+    # Step 3: Verify installation
+    info("Verifying installation...")
+    verify_result = subprocess.run(["uv", "pip", "show", package_name], capture_output=True, text=True)
+    if verify_result.returncode == 0:
+        ok(f"Verified: {package_name}")
+    else:
+        warn(f"Could not verify {package_name} — check manually with 'uv pip show {package_name}'")
+
+    print()
+    info("Next step: Add to your mcp_settings.json:")
+    print(f"       \"{package_name}\": {{")
+    print(f"         \"command\": \"uv\",")
+    print(f"         \"args\": [\"run\", \"{package_name}\"]")
+    print(f"       }}")
+
+    if mcp_config_path.exists():
+        info(f"MCP config location: {mcp_config_path}")
+    else:
+        warn(f"MCP config not found at expected path: {mcp_config_path}")
+        warn("Add the entry above to your mcp_settings.json manually.")
+
+    return True
+
 
 def backup(target: Path) -> "Path | None":
     if not target.exists():
