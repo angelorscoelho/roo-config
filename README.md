@@ -1,4 +1,6 @@
-# Roo Code Global Budget Config — v3
+# Roo Code + Cline Global Budget Config — v3
+
+**Dual compatibility:** works with both [Roo Code](https://rooveterinaryinc.roo-cline) and [Cline](https://saoudrizwan.claude-dev).
 
 Upgrades cleanly from v1 and v2. Does NOT touch API keys.
 
@@ -15,8 +17,14 @@ Upgrades cleanly from v1 and v2. Does NOT touch API keys.
 ## Quick Start
 
 ```bash
-# Upgrade from v1/v2 (safe, backs up existing files)
+# Install for BOTH Roo Code and Cline (default)
 python install.py
+
+# Install for Roo Code only
+python install.py --roo
+
+# Install for Cline only
+python install.py --cline
 
 # Preview first
 python install.py --dry-run
@@ -28,6 +36,34 @@ python install.py --undo
 cd your-project
 python path/to/roo-config/install.py --init-project
 ```
+
+### Extension Target Options
+
+When running `python install.py` without flags, you'll be prompted interactively:
+
+```
+  ┌─────────────────────────────────────────────┐
+  │         Extension Target Selection            │
+  └─────────────────────────────────────────────┘
+
+    [1] Install for BOTH Roo Code + Cline (recommended)
+    [2] Install for Roo Code only
+    [3] Install for Cline only
+
+  Select option (1/2/3) or press ENTER for both:
+```
+
+Or use CLI flags for non-interactive use:
+
+| Flag | Extensions Targeted | Extension ID |
+|------|-------------------|--------------|
+| `--both` (default) | Roo Code + Cline | rooveterinaryinc.roo-cline, سعودrizwan.claude-dev |
+| `--roo` | Roo Code only | rooveterinaryinc.roo-cline |
+| `--cline` | Cline only | سعودrizwan.claude-dev |
+
+### Cline Global Rules
+
+Cline does not have an equivalent to the `.roo/rules/` directory (global rules feature). The `00-global-budget-rules.md` file is only installed for Roo Code. This is a native Roo Code feature that Cline doesn't support.
 
 ### MCP Server Validation (Run at Start of Every Session)
 
