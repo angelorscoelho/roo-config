@@ -1,0 +1,63 @@
+# Cline ignore — files excluded from Cline's context
+# Works like .gitignore: glob patterns, one per line
+
+# Dependencies (massive, never useful in context)
+node_modules/
+.venv/
+vendor/
+.bundle/
+
+# Build artifacts
+dist/
+build/
+out/
+.next/
+.nuxt/
+__pycache__/
+*.pyc
+*.pyo
+
+# Lock files (read by serena when needed, not by context)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+poetry.lock
+Gemfile.lock
+composer.lock
+
+# Environment and secrets (NEVER in context)
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*secret*
+*credential*
+
+# Generated / cached files
+coverage/
+.nyc_output/
+*.min.js
+*.min.css
+*.map
+
+# IDE files
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Serena cache (memories are committed, cache is not)
+.serena/*.log
+.serena/server_state.json
+.serena/index/
+
+# Large data files
+*.csv
+*.json.gz
+*.parquet
+*.sqlite
+*.db

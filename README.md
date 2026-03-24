@@ -363,6 +363,7 @@ export GITHUB_PERSONAL_ACCESS_TOKEN="ghp_..."
 - **Serena language support** — Serena requires a tree-sitter grammar for the project language. Supported: TypeScript, JavaScript, Python, Rust, Go, Java, C/C++. For unsupported languages, `read_file` is the fallback (not ideal, but necessary).
 - **Windows path handling** — All paths in config files use forward slashes or `Path.home()` — no hardcoded Windows paths. If you encounter path issues on Windows, ensure you're running from a terminal with `%APPDATA%` set.
 
+
 ---
 
 ## Upgrade from v1/v2
@@ -382,3 +383,49 @@ What changed in v3:
 - Free tier model table added
 - Memory bank protocol updated to use `duckduckgo-mcp` and `ref.tools`
 - Hardcoded Windows paths removed — `uvx` used for Python MCP servers
+
+---
+
+## Cline Support
+
+This config also supports **Cline** (VSCode extension `saoudrizwan.claude-dev`).
+
+### Install for Cline
+
+```bash
+# Install global rules and skills
+python install.py --install-cline
+
+# Verify MCP servers (shared stack with Roo Code)
+python install.py --test-mcp
+
+# Initialize a project (adds .clinerules/ alongside .roo/rules/)
+python install.py --init-project
+```
+
+### What Gets Installed
+
+| Destination | Content |
+|------------|---------|
+| `~/Documents/Cline/Rules/00-mcp-cheatsheet.md` | Full MCP tool reference and decision trees |
+| `~/Documents/Cline/Rules/01-agent-discipline.md` | Anti-loop protocol, security rules, output discipline |
+| `~/.cline/skills/architect/SKILL.md` | Planning-only mode — diagrams, ADRs, trade-off tables |
+| `~/.cline/skills/debug/SKILL.md` | 7-step debug sequence with mandatory halt conditions |
+| `~/.cline/skills/security/SKILL.md` | Audit phases, taint analysis, severity-ranked findings |
+| `~/.cline/skills/devops/SKILL.md` | IaC rules, destructive command gates, cost transparency |
+| `~/.cline/skills/orchestrator/SKILL.md` | Decomposition sequence, 200-token delegation prompts |
+| `~/.cline/skills/merge-resolver/SKILL.md` | Semantic conflict resolution with AMBIGUOUS escalation |
+| `~/.cline/skills/user-story/SKILL.md` | Gherkin format, clarification gates, quality checks |
+| `~/.cline/skills/docs-writer/SKILL.md` | Word limits, banned words, standard doc templates |
+| `{project}/.clinerules/02-memory-bank-protocol.md` | Session start/end + serena memory integration |
+| `{project}/.clineignore` | Excludes deps, artifacts, secrets from Cline's context |
+
+### Architecture Difference vs Roo Code
+
+Cline does not use `customModes.yaml`. Instead:
+- **Skills** (`~/.cline/skills/`) replace custom mode `roleDefinition` + `customInstructions`.
+  Skills activate automatically when a request matches their domain.
+- **Rules** (`~/Documents/Cline/Rules/`) replace `~/.roo/rules/` global rules.
+  Rules are always-on; use YAML frontmatter `paths:` in `.clinerules/` for path-scoped rules.
+- **MCP settings** are the same JSON format, different path:
+  `~/AppData/Roaming/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`

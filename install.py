@@ -15,6 +15,7 @@ Commands:
   python install.py --check-env        Verify environment variables
   python install.py --install-mcp      Install all MCP servers from config
   python install.py --test-mcp         Test connectivity of all MCP servers
+  python install.py --install-cline    Install Cline global rules and skills
 
 Python MCP Servers:
   For Python-based MCP servers (e.g., duckduckgo-mcp), use 'uv + venv':
@@ -46,12 +47,53 @@ ANSI = sys.stdout.isatty() and (
 )
 
 def c(text, code):  return f"\033[{code}m{text}\033[0m" if ANSI else text
-def ok(msg):        print(c(f"  ✔  {msg}", "32"))
-def warn(msg):      print(c(f"  ⚠  {msg}", "33"))
-def err(msg):       print(c(f"  ✘  {msg}", "31"), file=sys.stderr)
-def info(msg):      print(c(f"  →  {msg}", "36"))
-def head(msg):      print(c(f"\n{'─'*60}\n  {msg}\n{'─'*60}", "1"))
-def step(n, msg):   print(c(f"\n  [{n}] {msg}", "1;33"))
+
+def clean_text(text):
+    """Replace Unicode characters with ASCII alternatives when ANSI is disabled."""
+    if ANSI:
+        return text
+    # Replace common Unicode symbols with ASCII equivalents
+    replacements = {
+        "→": "->",
+        "─": "-",
+        "—": "-",
+        "✔": "[OK]",
+        "✓": "[OK]",
+        "⚠": "[WARN]",
+        "✘": "[ERR]",
+        "✗": "[ERR]",
+        "🏛️": "[ARCH]",
+        "⚡": "[CODE]",
+        "❓": "[ASK]",
+        "🐛": "[DEBUG]",
+        "🎯": "[ORCH]",
+        "🔀": "[MERGE]",
+        "📄": "[DOCS]",
+        "📋": "[STORY]",
+        "⚙️": "[DEVOPS]",
+        "🔒": "[SECURITY]",
+    }
+    result = text
+    for uni, ascii_repl in replacements.items():
+        result = result.replace(uni, ascii_repl)
+    return result
+
+def ok(msg):        
+    symbol = "✓" if ANSI else "[OK]"
+    print(c(f"  {symbol}  {clean_text(msg)}", "32"))
+def warn(msg):      
+    symbol = "⚠" if ANSI else "[WARN]"
+    print(c(f"  {symbol}  {clean_text(msg)}", "33"))
+def err(msg):       
+    symbol = "✗" if ANSI else "[ERR]"
+    print(c(f"  {symbol}  {clean_text(msg)}", "31"), file=sys.stderr)
+def info(msg):      
+    symbol = "→" if ANSI else "->"
+    print(c(f"  {symbol}  {clean_text(msg)}", "36"))
+def head(msg):      
+    line_char = "─" if ANSI else "-"
+    print(c(f"\n{line_char*60}\n  {clean_text(msg)}\n{line_char*60}", "1"))
+def step(n, msg):   print(c(f"\n  [{n}] {clean_text(msg)}", "1;33"))
 
 # ─── OS-specific paths ───────────────────────────────────────────────────────
 
@@ -75,6 +117,33 @@ def get_roo_mcp_settings_path() -> Path:
 def get_roo_global_rules_dir() -> Path:
     return Path.home() / ".roo" / "rules"
 
+# ─── Cline-specific paths ─────────────────────────────────────────────────────
+
+def get_cline_settings_dir() -> Path:
+    system = platform.system()
+    if system == "Windows":
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        return base / "Code" / "User" / "globalStorage" / "saoudrizwan.claude-dev" / "settings"
+    if system == "Darwin":
+        return Path.home() / "Library" / "Application Support" / "Code" / "User" / "globalStorage" / "saoudrizwan.claude-dev" / "settings"
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    base = Path(xdg) if xdg else Path.home() / ".config"
+    return base / "Code" / "User" / "globalStorage" / "saoudrizwan.claude-dev" / "settings"
+
+def get_cline_mcp_settings_path() -> Path:
+    return get_cline_settings_dir() / "cline_mcp_settings.json"
+
+def get_cline_global_rules_dir() -> Path:
+    system = platform.system()
+    if system == "Windows":
+        docs = Path(os.environ.get("USERPROFILE", Path.home())) / "Documents"
+    else:
+        docs = Path.home() / "Documents"
+    return docs / "Cline" / "Rules"
+
+def get_cline_global_skills_dir() -> Path:
+    return Path.home() / ".cline" / "skills"
+
 # ─── File locations ───────────────────────────────────────────────────────────
 SCRIPT_DIR   = Path(__file__).parent.resolve()
 CONFIGS_DIR  = SCRIPT_DIR / "configs"
@@ -84,11 +153,62 @@ SOURCE_MODES = CONFIGS_DIR / "custom_modes.yaml"
 SOURCE_RULES = CONFIGS_DIR / "00-global-budget-rules.md"
 SOURCE_MCP   = CONFIGS_DIR / "mcp_settings.json"
 
+# Cline sources
+CLINE_RULES_DIR  = CONFIGS_DIR / "cline" / "rules"
+CLINE_SKILLS_DIR = CONFIGS_DIR / "cline" / "skills"
+SOURCE_CLINE_MCP = CONFIGS_DIR / "mcp_settings.json"   # same MCP settings file — shared
+
 LOG_PATH     = SCRIPT_DIR / ".install_log"
 
 # ─── Safety: verify no credentials in config files ───────────────────────────
 
 CREDENTIAL_PATTERNS = ["ghp_", "ghs_", "sk-", "BSA7", "AIza", "xoxb-", "xoxp-"]
+
+
+# ─── WSL / Windows env helpers ──────────────────────────────────────────────
+def is_wsl() -> bool:
+    """Return True if running under WSL (Linux on Windows)."""
+    try:
+        with open("/proc/version", "r", encoding="utf-8", errors="ignore") as f:
+            return "microsoft" in f.read().lower()
+    except Exception:
+        return False
+
+
+def fetch_windows_user_env_vars(var_names: List[str]) -> None:
+    """When running under WSL, attempt to import Windows *user* environment
+    variables via PowerShell and set them in the WSL environment.
+
+    Only best-effort: if PowerShell isn't available from WSL the function will
+    warn and return without failing.
+    """
+    # Only attempt on WSL (Linux-on-Windows)
+    if platform.system() != "Linux" or not is_wsl():
+        return
+
+    info("Detected WSL — attempting to import Windows user env vars")
+    for var in var_names:
+        try:
+            proc = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-Command",
+                 f"[System.Environment]::GetEnvironmentVariable('{var}', 'User')"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if proc.returncode == 0:
+                val = proc.stdout.strip()
+                if val:
+                    os.environ[var] = val
+                    ok(f"Imported Windows user env var: {var}")
+                else:
+                    info(f"Windows user env var not set: {var}")
+            else:
+                info(f"Could not read {var} via PowerShell: {proc.stderr.strip()}")
+        except FileNotFoundError:
+            warn("powershell.exe not available from WSL — cannot import Windows user env vars")
+            break
+        except Exception as e:
+            warn(f"Error reading Windows env var {var}: {e}")
+
 
 def check_no_credentials(path: Path) -> bool:
     content = path.read_text(encoding="utf-8", errors="ignore")
@@ -208,47 +328,47 @@ MCP_SERVERS: Dict[str, Dict[str, Any]] = {
 
     # ── npm-based servers ─────────────────────────────────────────────────────
     "fetch": {
-        "_doc": "FREE: Official MCP fetch — converts any URL to clean Markdown. Zero cost, zero API key. Use BEFORE duckduckgo-mcp.",
-        "type": "npx",
-        "package": "@modelcontextprotocol/server-fetch",
-        "install_cmd": ["npx", "-y", "@modelcontextprotocol/server-fetch"],
-        "config": {
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-fetch"]
-        },
-        "env_vars": [],
-        "test_url": None,
+      "_doc": "FREE: Official MCP fetch — converts any URL to clean Markdown. Zero cost, zero API key. Use BEFORE duckduckgo-mcp.",
+      "type": "npx",
+      "package": "mcp-fetch-server",
+      "install_cmd": ["npx", "-y", "mcp-fetch-server"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "mcp-fetch-server"]
+      },
+      "env_vars": [],
+      "test_url": None,
     },
 
     "context7": {
-        "_doc": "DOCS: Version-accurate library documentation. Use for API lookups, not broad research.",
-        "type": "npx",
-        "package": "@upstash/context7-mcp",
-        "install_cmd": ["npx", "-y", "@upstash/context7-mcp@latest"],
-        "config": {
-            "command": "npx",
-            "args": ["-y", "@upstash/context7-mcp@latest"]
-        },
-        "env_vars": [],
-        "test_url": None,
+      "_doc": "DOCS: Version-accurate library documentation. Use for API lookups, not broad research.",
+      "type": "npx",
+      "package": "@upstash/context7-mcp",
+      "install_cmd": ["npx", "-y", "@upstash/context7-mcp"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@upstash/context7-mcp"]
+      },
+      "env_vars": [],
+      "test_url": None,
     },
 
 
     # ── HTTP-based servers (external service) ─────────────────────────────────
     "ref.tools": {
-        "_doc": "DOCS: Token-efficient doc lookups. 95% fewer tokens than Context7. Requires API key from ref.tools website.",
-        "type": "http",
-        "package": None,
-        "install_cmd": None,
-        "config": {
-            "command": "npx",
-            "args": ["-y", "@upstash/ref-tools-mcp"],
-            "env": {
-                "REF_TOOLS_API_KEY": "${env:REF_TOOLS_API_KEY}"
-            }
-        },
-        "env_vars": ["REF_TOOLS_API_KEY"],
-        "test_url": None,
+      "_doc": "DOCS: Token-efficient doc lookups. 95% fewer tokens than Context7. Requires API key from ref.tools website.",
+      "type": "npx",
+      "package": "ref-tools-mcp",
+      "install_cmd": ["npx", "-y", "ref-tools-mcp"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "ref-tools-mcp"],
+        "env": {
+          "REF_TOOLS_API_KEY": "${env:REF_TOOLS_API_KEY}"
+        }
+      },
+      "env_vars": ["REF_TOOLS_API_KEY"],
+      "test_url": None,
     },
 
     # ── Python/uv-based servers ───────────────────────────────────────────────
@@ -428,7 +548,9 @@ def install_mcp_server(server_name: str, server_config: Dict[str, Any], dry_run:
         info("npx servers run directly — no installation needed")
         info("Verify npx is available:")
         if not dry_run:
-            result = subprocess.run(["npx", "--version"], capture_output=True, text=True)
+            # On Windows, npx is npx.cmd
+            npx_cmd = "npx.cmd" if platform.system() == "Windows" else "npx"
+            result = subprocess.run([npx_cmd, "--version"], capture_output=True, text=True)
             if result.returncode == 0:
                 ok(f"npx available: {result.stdout.strip()}")
             else:
@@ -555,6 +677,9 @@ def test_mcp_server_connectivity(server_name: str, server_config: Dict[str, Any]
     elif srv_type in ("uvx", "npx"):
         # Just verify the command exists
         cmd = server_config["config"]["command"]
+        # On Windows, npx is npx.cmd
+        if cmd == "npx" and platform.system() == "Windows":
+            cmd = "npx.cmd"
         try:
             proc = subprocess.run([cmd, "--version"], capture_output=True, text=True, timeout=5)
             if proc.returncode == 0:
@@ -789,7 +914,7 @@ def check_env(verbose=True) -> bool:
     if missing and verbose:
         print()
         warn("On Windows — set in System Environment Variables:")
-        print("  Win+R → sysdm.cpl → Advanced → Environment Variables → User variables → New")
+        print("  Win+R -> sysdm.cpl -> Advanced -> Environment Variables -> User variables -> New")
         print()
         warn("Or temporarily in PowerShell (this session only):")
         for var in missing:
@@ -834,6 +959,88 @@ def install_mcp_settings(src: Path, dst: Path, dry_run: bool) -> "Path | None":
 
     return bak
 
+# ─── Cline install ───────────────────────────────────────────────────────────
+
+def run_cline_install(dry_run: bool):
+    """Install Cline global rules and skills."""
+    head("Cline Global Config Installer")
+    print(f"  Platform : {platform.system()} {platform.machine()}")
+    if dry_run:
+        print(c("  Mode     : DRY RUN", "33"))
+
+    dst_rules_dir  = get_cline_global_rules_dir()
+    dst_skills_dir = get_cline_global_skills_dir()
+    dst_mcp        = get_cline_mcp_settings_path()
+
+    head("Target Paths")
+    info(f"Global rules  → {dst_rules_dir}/")
+    info(f"Global skills → {dst_skills_dir}/")
+    info(f"MCP settings  → {dst_mcp}")
+
+    log = []
+
+    # Install global rules
+    head("Installing Global Rules")
+    if CLINE_RULES_DIR.exists():
+        for rule_file in sorted(CLINE_RULES_DIR.glob("*.md")):
+            dst = dst_rules_dir / rule_file.name
+            bak = install_file(rule_file, dst, dry_run)
+            log.append((dst, bak))
+    else:
+        warn(f"Cline rules source not found: {CLINE_RULES_DIR}")
+
+    # Install global skills
+    head("Installing Global Skills")
+    if CLINE_SKILLS_DIR.exists():
+        for skill_dir in sorted(CLINE_SKILLS_DIR.iterdir()):
+            if skill_dir.is_dir():
+                skill_md = skill_dir / "SKILL.md"
+                if skill_md.exists():
+                    dst = dst_skills_dir / skill_dir.name / "SKILL.md"
+                    bak = install_file(skill_md, dst, dry_run)
+                    log.append((dst, bak))
+    else:
+        warn(f"Cline skills source not found: {CLINE_SKILLS_DIR}")
+
+    # Install MCP settings
+    head("Installing MCP Settings")
+    bak = install_mcp_settings(SOURCE_CLINE_MCP, dst_mcp, dry_run)
+    log.append((dst_mcp, bak))
+
+    if not dry_run:
+        record_install(log)
+
+    check_env(verbose=True)
+
+    head("Manual Steps Required")
+    cline_steps = [
+        ("1", "Reload VS Code",
+         "Ctrl+Shift+P → 'Developer: Reload Window'\n"
+         "     Global rules appear in Cline's Rules panel (scale icon) immediately."),
+        ("2", "Verify Skills in Cline",
+         "Open Cline → Skills panel → you should see all 8 skills listed.\n"
+         "     Skills activate automatically when your request matches their domain."),
+        ("3", "MCP servers — same stack as Roo Code",
+         "serena, fetch, ref.tools, context7, duckduckgo-mcp, crash-mcp, github\n"
+         "     All configured in the shared mcp_settings.json installed above.\n"
+         "     Run: python install.py --test-mcp to verify all servers are live."),
+        ("4", "Initialize each project for Cline",
+         "cd to project root, then:\n"
+         "     python install.py --init-project\n"
+         "     This creates .clinerules/ in addition to .roo/rules/"),
+    ]
+    for num, title, detail in cline_steps:
+        step(num, title)
+        for line in detail.splitlines():
+            print(f"     {clean_text(line)}")
+
+    print()
+    if dry_run:
+        warn("DRY RUN — no files written.")
+    else:
+        ok("Cline install complete.")
+    print()
+
 # ─── Global install ───────────────────────────────────────────────────────────
 
 def run_global_install(dry_run: bool):
@@ -842,6 +1049,14 @@ def run_global_install(dry_run: bool):
     print(f"  Python   : {sys.version.split()[0]}")
     if dry_run:
         print(c("  Mode     : DRY RUN", "33"))
+    # Try to import Windows user environment variables when running under WSL.
+    # This is best-effort and won't fail the installer if unavailable.
+    try:
+        fetch_windows_user_env_vars(list(REQUIRED_ENV.keys()))
+    except NameError:
+        # REQUIRED_ENV may be defined later in the file; if so, fetching will
+        # occur at runtime when run_global_install is invoked.
+        pass
     print(f"  Upgrades : cleanly overrides v1 and v2 installations")
     print(f"  API Keys : NOT touched (stored in OS env vars)")
 
@@ -866,6 +1081,26 @@ def run_global_install(dry_run: bool):
         warn("Launch VS Code with Roo Code installed first, then re-run if issues occur.")
     else:
         ok("Roo Code globalStorage found")
+
+    # If running interactively and required env vars are missing, warn the
+    # user and require they set the Windows *User* env vars before proceeding.
+    missing_required = [v for v in REQUIRED_ENV.keys() if not os.environ.get(v)]
+    if missing_required and not dry_run:
+        head("Required Environment Variables Missing")
+        warn("The following REQUIRED environment variables are not present in the current environment:")
+        for v in missing_required:
+            print(f"     - {v}")
+        print()
+        print("Please set these as Windows USER environment variables (Win+R → sysdm.cpl → Advanced → Environment Variables → New) and then restart VS Code or import them into WSL via WSLENV.")
+        print("After setting the variables, press Enter to continue, or Ctrl+C to abort the installation.")
+        try:
+            input("Press Enter to continue after setting env vars (or Ctrl+C to abort)...")
+        except KeyboardInterrupt:
+            err("Installation aborted by user.")
+            sys.exit(1)
+        except EOFError:
+            err("Interactive input not available — aborting.")
+            sys.exit(1)
 
     head("Installing Global Files")
     log = []
@@ -950,7 +1185,7 @@ def run_global_install(dry_run: bool):
     for num, title, detail in steps:
         step(num, title)
         for line in detail.splitlines():
-            print(f"     {line}")
+            print(f"     {clean_text(line)}")
 
     print()
     if dry_run:
@@ -976,6 +1211,13 @@ def run_init_project(project_path: Path, dry_run: bool):
 
     copy_tree_template(TEMPLATE_DIR, project_path, dry_run, skip_existing=True)
 
+    # Also scaffold Cline project rules
+    cline_template = TEMPLATE_DIR / ".clinerules"
+    if cline_template.exists():
+        dst_clinerules = project_path / ".clinerules"
+        copy_tree_template(cline_template, dst_clinerules, dry_run, skip_existing=True)
+        ok("Scaffolded .clinerules/")
+
     # Update .gitignore for Serena
     gitignore = project_path / ".gitignore"
     serena_lines = [
@@ -999,6 +1241,7 @@ def run_init_project(project_path: Path, dry_run: bool):
     commit_files = [
         ".roo/mcp.json                  ← Serena project MCP config (no credentials)",
         ".roo/rules/01-memory-bank-protocol.md  ← MCP decision tree + memory rules",
+        ".clinerules/02-memory-bank-protocol.md ← Cline memory bank protocol",
         "memory-bank/productContext.md  ← FILL IN FIRST",
         "memory-bank/activeContext.md   ← Updated by UMB command",
         "memory-bank/decisionLog.md     ← Architectural decisions",
@@ -1020,7 +1263,7 @@ def run_init_project(project_path: Path, dry_run: bool):
          "     Serena indexes the codebase → creates .serena/memories/\n"
          "     Commit .serena/memories/ immediately after."),
         ("3", "Commit everything",
-         "git add .roo/ memory-bank/ projectBrief.md .serena/\n"
+         "git add .roo/ .clinerules/ memory-bank/ projectBrief.md .serena/\n"
          "     git commit -m 'chore: initialize Roo Code v3 memory bank'\n"
          "     Any machine that clones this repo gets full Roo Code context."),
         ("4", "UMB habit",
@@ -1030,7 +1273,7 @@ def run_init_project(project_path: Path, dry_run: bool):
     for num, title, detail in proj_steps:
         step(num, title)
         for line in detail.splitlines():
-            print(f"     {line}")
+            print(f"     {clean_text(line)}")
 
     print()
     if dry_run:
@@ -1049,6 +1292,7 @@ def main():
     parser.add_argument("--check-env",    action="store_true")
     parser.add_argument("--install-mcp",  action="store_true", help="Install all MCP servers")
     parser.add_argument("--test-mcp",     action="store_true", help="Test MCP server connectivity")
+    parser.add_argument("--install-cline", action="store_true", help="Install Cline global rules and skills")
     args = parser.parse_args()
 
     if args.undo:
@@ -1062,6 +1306,8 @@ def main():
         run_mcp_install(dry_run=args.dry_run); return
     if args.test_mcp:
         test_mcp_servers(); return
+    if args.install_cline:
+        run_cline_install(dry_run=args.dry_run); return
 
     run_global_install(args.dry_run)
 

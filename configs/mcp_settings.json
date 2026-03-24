@@ -17,19 +17,19 @@
     "fetch": {
       "_doc": "FREE: Official MCP fetch — converts any URL to clean Markdown. Zero cost, zero API key. Use before duckduckgo-mcp.",
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-fetch"]
+      "args": ["-y", "mcp-fetch-server"]
     },
 
     "context7": {
       "_doc": "DOCS: Version-accurate library documentation. Use for API lookups, not broad research.",
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp@latest"]
+      "args": ["-y", "@upstash/context7-mcp"]
     },
 
     "ref.tools": {
       "_doc": "DOCS: Token-efficient doc lookups. 95% fewer tokens than Context7. Requires API key from ref.tools.",
       "command": "npx",
-      "args": ["-y", "@upstash/ref-tools-mcp"],
+      "args": ["-y", "ref-tools-mcp"],
       "env": {
         "REF_TOOLS_API_KEY": "${env:REF_TOOLS_API_KEY}"
       }
