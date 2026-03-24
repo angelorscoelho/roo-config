@@ -69,8 +69,14 @@ def get_vscode_globalStorage() -> Path:
 def get_roo_settings_dir() -> Path:
     return get_vscode_globalStorage() / "rooveterinaryinc.roo-cline" / "settings"
 
+def get_cline_settings_dir() -> Path:
+    return get_vscode_globalStorage() / "saoudrizwan.claude-dev" / "settings"
+
 def get_roo_mcp_settings_path() -> Path:
     return get_roo_settings_dir() / "cline_mcp_settings.json"
+
+def get_cline_mcp_settings_path() -> Path:
+    return get_cline_settings_dir() / "cline_mcp_settings.json"
 
 def get_roo_global_rules_dir() -> Path:
     return Path.home() / ".roo" / "rules"
@@ -834,25 +840,74 @@ def install_mcp_settings(src: Path, dst: Path, dry_run: bool) -> "Path | None":
 
     return bak
 
+def prompt_target() -> str:
+    """Prompt user for which extension to target. Returns 'roo', 'cline', or 'both'."""
+    print()
+    print(c("  ┌─────────────────────────────────────────────┐", "36"))
+    print(c("  │         Extension Target Selection            │", "36"))
+    print(c("  └─────────────────────────────────────────────┘", "36"))
+    print()
+    print(f"    [{c("1", "33")}] Install for BOTH Roo Code + Cline (recommended)")
+    print(f"    [{c("2", "33")}] Install for Roo Code only")
+    print(f"    [{c("3", "33")}] Install for Cline only")
+    print()
+    
+    while True:
+        choice = input(c("  Select option (1/2/3) or press ENTER for both: ", "36")).strip()
+        if choice == "" or choice == "1":
+            return "both"
+        elif choice == "2":
+            return "roo"
+        elif choice == "3":
+            return "cline"
+        else:
+            warn("Invalid choice. Please enter 1, 2, or 3, or press ENTER.")
+
 # ─── Global install ───────────────────────────────────────────────────────────
 
-def run_global_install(dry_run: bool):
-    head("Roo Code Global Budget Config — v3 Installer")
+def run_global_install(dry_run: bool, target: str = None):
+    # If target is None, prompt user interactively
+    if target is None:
+        target = prompt_target()
+    
+    head("Roo Code + Cline Global Budget Config — v3 Installer")
     print(f"  Platform : {platform.system()} {platform.machine()}")
     print(f"  Python   : {sys.version.split()[0]}")
+    print(f"  Target   : {target.upper()}")
     if dry_run:
         print(c("  Mode     : DRY RUN", "33"))
     print(f"  Upgrades : cleanly overrides v1 and v2 installations")
     print(f"  API Keys : NOT touched (stored in OS env vars)")
 
-    dst_modes = get_roo_settings_dir() / "custom_modes.yaml"
-    dst_rules = get_roo_global_rules_dir() / "00-global-budget-rules.md"
-    dst_mcp   = get_roo_mcp_settings_path()
+    # Determine which extensions to install for
+    install_roo = target in ("roo", "both")
+    install_cline = target in ("cline", "both")
+
+    head("Target Extensions")
+    if install_roo:
+        info(f"  ✓ Roo Code (rooveterinaryinc.roo-cline)")
+    else:
+        warn(f"  ✗ Roo Code (skipped)")
+    if install_cline:
+        info(f"  ✓ Cline (saoudrizwan.claude-dev)")
+    else:
+        warn(f"  ✗ Cline (skipped)")
+
+    # Collect all target paths
+    all_targets = []
+    if install_roo:
+        all_targets.append(("roo", get_roo_settings_dir() / "custom_modes.yaml", get_roo_mcp_settings_path()))
+    if install_cline:
+        all_targets.append(("cline", get_cline_settings_dir() / "custom_modes.yaml", get_cline_mcp_settings_path()))
 
     head("Target Paths")
-    info(f"Custom modes  → {dst_modes}")
-    info(f"Global rules  → {dst_rules}")
-    info(f"MCP settings  → {dst_mcp}")
+    for ext_name, modes_path, mcp_path in all_targets:
+        info(f"  [{ext_name.upper()}]")
+        info(f"    Custom modes → {modes_path}")
+        info(f"    MCP settings → {mcp_path}")
+    # Global rules only for Roo Code
+    if install_roo:
+        info(f"    Global rules → {get_roo_global_rules_dir() / '00-global-budget-rules.md'}")
 
     head("Preflight Validation")
     yaml_ok = validate_yaml(SOURCE_MODES)
@@ -861,23 +916,39 @@ def run_global_install(dry_run: bool):
         err("Validation failed. Aborting.")
         sys.exit(1)
 
-    if not get_roo_settings_dir().exists() and not dry_run:
-        warn("Roo Code globalStorage not found — will be created.")
-        warn("Launch VS Code with Roo Code installed first, then re-run if issues occur.")
-    else:
-        ok("Roo Code globalStorage found")
+    # Check if extension directories exist
+    for ext_name, settings_dir, _ in all_targets:
+        if not settings_dir.exists() and not dry_run:
+            warn(f"{ext_name.upper()} globalStorage not found — will be created.")
+        else:
+            ok(f"{ext_name.upper()} globalStorage found")
 
     head("Installing Global Files")
     log = []
 
-    bak1 = install_file(SOURCE_MODES, dst_modes, dry_run)
-    log.append((dst_modes, bak1))
+    # Install for each target extension
+    for ext_name, modes_dst, mcp_dst in all_targets:
+        print()
+        info(f"Installing for {ext_name.upper()}...")
+        
+        # Install custom modes
+        bak1 = install_file(SOURCE_MODES, modes_dst, dry_run)
+        log.append((modes_dst, bak1))
+        
+        # Install MCP settings
+        bak3 = install_mcp_settings(SOURCE_MCP, mcp_dst, dry_run)
+        log.append((mcp_dst, bak3))
+        
+        ok(f"{ext_name.upper()} configuration complete")
 
-    bak2 = install_file(SOURCE_RULES, dst_rules, dry_run)
-    log.append((dst_rules, bak2))
-
-    bak3 = install_mcp_settings(SOURCE_MCP, dst_mcp, dry_run)
-    log.append((dst_mcp, bak3))
+    # Global rules only for Roo Code
+    if install_roo:
+        print()
+        info("Installing global rules (Roo Code only)...")
+        dst_rules = get_roo_global_rules_dir() / "00-global-budget-rules.md"
+        bak2 = install_file(SOURCE_RULES, dst_rules, dry_run)
+        log.append((dst_rules, bak2))
+        ok("Global rules installed")
 
     if not dry_run:
         record_install(log)
@@ -1039,17 +1110,59 @@ def run_init_project(project_path: Path, dry_run: bool):
         ok("Project initialized.")
     print()
 
+# ─── Extension target helpers ─────────────────────────────────────────────────
+
+def get_extension_target() -> str:
+    """Determine which extension(s) to target based on CLI args or defaults."""
+    return getattr(googletag, '_target', 'both')
+
+def set_extension_target(target: str):
+    """Set the extension target globally (for use in run_global_install)."""
+    googletag._target = target
+
+# Placeholder for target storage (avoiding globals)
+class googletag:
+    _target = 'both'
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Roo Code v3 Installer")
+    parser = argparse.ArgumentParser(
+        description="Roo Code + Cline Global Budget Config Installer",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python install.py                    Install for both Roo Code and Cline
+  python install.py --roo             Install for Roo Code only
+  python install.py --cline            Install for Cline only
+  python install.py --dry-run          Preview what would be installed
+  python install.py --init-project     Scaffold project template
+        """
+    )
     parser.add_argument("--dry-run",      action="store_true")
     parser.add_argument("--undo",         action="store_true")
     parser.add_argument("--init-project", nargs="?", const=".", metavar="PATH")
     parser.add_argument("--check-env",    action="store_true")
     parser.add_argument("--install-mcp",  action="store_true", help="Install all MCP servers")
     parser.add_argument("--test-mcp",     action="store_true", help="Test MCP server connectivity")
+    target_group = parser.add_mutually_exclusive_group()
+    target_group.add_argument(
+        "--roo", action="store_const", dest="target", const="roo",
+        help="Install for Roo Code only (rooveterinaryinc.roo-cline)"
+    )
+    target_group.add_argument(
+        "--cline", action="store_const", dest="target", const="cline",
+        help="Install for Cline only (saoudrizwan.claude-dev)"
+    )
+    target_group.add_argument(
+        "--both", action="store_const", dest="target", const="both",
+        help="Install for both Roo Code and Cline (default)"
+    )
+    parser.set_defaults(target="both")
     args = parser.parse_args()
+
+    # Set global target for use in run_global_install
+    googletag._target = args.target
 
     if args.undo:
         undo_install(); return
@@ -1063,7 +1176,7 @@ def main():
     if args.test_mcp:
         test_mcp_servers(); return
 
-    run_global_install(args.dry_run)
+    run_global_install(args.dry_run, target=args.target)
 
 if __name__ == "__main__":
     main()
